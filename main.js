@@ -75,7 +75,6 @@ const openModal = (elementObject) => {
   currentElementObject = elementObject;
 
   editForm.innerHTML = "";
-  console.log("eleObj", elementObject);
   for (const key in elementObject) {
     if (
       elementObject.hasOwnProperty(key) &&
@@ -170,7 +169,6 @@ saveChangesButton.addEventListener("click", async () => {
     currentElementObject[key] = value;
   });
 
-  console.log("currentElementObject", currentElementObject);
   try {
     const response = await updateData(
       currentElementObject.id,
@@ -310,7 +308,6 @@ const createElementsNode = ({
 const getElementsNodes = async () => {
   try {
     const formElementsData = await getData(config.api_url);
-    console.log("formElements", formElementsData);
 
     const formContainer = document.getElementById("form-area");
     formContainer.innerHTML = "";
@@ -328,7 +325,6 @@ const getElementsNodes = async () => {
     formContainer.addEventListener("dragstart", (e) => {
       draggedItem = e.target;
       e.target.classList.add("dragging");
-      console.log("dragStart:", draggedItem);
     });
 
     formContainer.addEventListener("dragend", (e) => {
@@ -343,9 +339,7 @@ const getElementsNodes = async () => {
 
     formContainer.addEventListener("dragover", (e) => {
       e.preventDefault();
-      console.log("dragOver:");
       const afterElement = getDragAfterElement(formContainer, e.clientY);
-      console.log("afterElement", afterElement);
       const dragging = document.querySelector(".dragging");
 
       if (afterElement && afterElement !== currentAfterElement) {
@@ -367,7 +361,6 @@ const getElementsNodes = async () => {
     });
 
     function getDragAfterElement(formContainer, y) {
-      console.log("formContainer:", formContainer, "y:", y);
       const draggableElements = [
         ...formContainer.querySelectorAll(".draggable-div:not(.dragging)"),
       ];
@@ -650,9 +643,8 @@ async function saveCurrentUI() {
       }
 
       newArrangedElementList.push(elementData);
-      console.log("Element Data:", elementData);
     });
-    console.log("newArrangedElementListOnSave:", newArrangedElementList);
+    console.log("newArrangedElementList:OnSave:", newArrangedElementList);
     try {
       const response = await replaceData(newArrangedElementList);
       console.log("Rearrangement saved successfully", response);
