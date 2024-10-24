@@ -1,29 +1,190 @@
 import axios from "axios";
+import { v4 as uuidv4 } from "uuid";
 import { config } from "./config/config";
-import { v4 as uuidv4 } from "uuid"; // Assuming you use the 'uuid' library to generate unique ids
+
+const baseUrl = `${config.api_url}/formElements`;
 
 const getData = async (url) => {
   try {
-    const response = await axios(`${url}/formElements`);
+    const response = await axios.get(baseUrl);
     return response.data;
   } catch (error) {
-    console.log("Error in getting data", error);
+    console.error("Error fetching data:", error);
+    throw new Error(`Failed to fetch data: ${error.message}`);
   }
 };
 
 const addData = async (payload) => {
   try {
-    const response = await axios.post(
-      `${config.api_url}/formElements`,
-      payload
-    );
+    const response = await axios.post(baseUrl, payload);
     return response.data;
   } catch (error) {
-    console.log("Error in adding element");
+    console.error("Error adding data:", error);
+    throw new Error(`Failed to add data: ${error.message}`);
   }
 };
 
-// Function to create an element node with proper label and form element (input, select, textarea)
+const deleteData = async (id) => {
+  try {
+    const response = await axios.delete(`${baseUrl}/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting data:", error);
+    throw new Error(`Failed to delete data: ${error.message}`);
+  }
+};
+
+const replaceData = async (newArrangedDataArr) => {
+  try {
+    const response = await axios.put(baseUrl, newArrangedDataArr);
+    return response.data;
+  } catch (error) {
+    console.error("Error replacing data:", error);
+    throw new Error(`Failed to replace data: ${error.message}`);
+  }
+};
+
+const updateData = async (id, updatedElement) => {
+  try {
+    const response = await axios.patch(`${baseUrl}/${id}`, updatedElement);
+    return response.data;
+  } catch (error) {
+    throw new Error(`Error in upating element: ${error.message}`);
+  }
+};
+
+const deleteElementById = async (id) => {
+  try {
+    const response = await deleteData(id);
+    console.log("Element deleted successfully", response);
+    await getAllFormElements();
+  } catch (error) {
+    console.log("Error in deleting element", error);
+  }
+};
+
+const modal = document.getElementById("editModal");
+const modalOverlay = document.getElementById("modalOverlay");
+const closeBtn = document.querySelector(".close");
+const saveChangesButton = document.getElementById("saveChangesButton");
+const editForm = document.getElementById("editForm");
+
+let currentElementObject = null;
+
+const openModal = (elementObject) => {
+  currentElementObject = elementObject;
+
+  editForm.innerHTML = "";
+  console.log("eleObj", elementObject);
+  for (const key in elementObject) {
+    if (
+      elementObject.hasOwnProperty(key) &&
+      elementObject[key] !== null &&
+      elementObject[key] !== undefined
+    ) {
+      const inputWrapper = document.createElement("div");
+
+      const label = document.createElement("label");
+      label.innerText = key[0].toLocaleUpperCase() + key.substring(1);
+      inputWrapper.appendChild(label);
+
+      if (key === "options") {
+        const optionWrapper = document.createElement("div");
+        optionWrapper.id = "optionWrapperInEdit";
+
+        elementObject.options?.forEach((option, index) => {
+          const optionDiv = document.createElement("div");
+          const input2 = document.createElement("input");
+          input2.type = "text";
+          input2.name = key;
+          input2.value = option;
+
+          const removeOptionBtn = document.createElement("button");
+          removeOptionBtn.innerText = "-";
+          removeOptionBtn.onclick = () => {
+            optionWrapper.removeChild(optionDiv);
+            elementObject.options.splice(index, 1);
+          };
+
+          optionDiv.appendChild(input2);
+          optionDiv.appendChild(removeOptionBtn);
+          optionWrapper.appendChild(optionDiv);
+        });
+
+        const addMoreOptionBtn = document.createElement("button");
+        addMoreOptionBtn.innerText = "+ Add Option";
+        addMoreOptionBtn.onclick = () => {
+          const newOptionDiv = document.createElement("div");
+          const input3 = document.createElement("input");
+          input3.type = "text";
+          input3.placeholder = "New option";
+          input3.name = key;
+
+          const removeNewOptionBtn = document.createElement("button");
+          removeNewOptionBtn.innerText = "-";
+
+          newOptionDiv.appendChild(input3);
+          newOptionDiv.appendChild(removeNewOptionBtn);
+          optionWrapper.appendChild(newOptionDiv);
+
+          removeNewOptionBtn.onclick = () => {
+            optionWrapper.removeChild(newOptionDiv);
+            elementObject.options.pop();
+          };
+
+          elementObject.options.push("Sample Option");
+          inputWrapper.append(optionWrapper, addMoreOptionBtn);
+        };
+      } else {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.name = key;
+        input.value = elementObject[key];
+        if (key === "element" || key === "type" || key === "id") {
+          input.readOnly = true;
+          input.disabled = true;
+        }
+        inputWrapper.appendChild(input);
+      }
+
+      editForm.appendChild(inputWrapper);
+    }
+  }
+
+  modal.style.display = "block";
+  modalOverlay.style.display = "block";
+};
+
+const closeModal = () => {
+  modal.style.display = "none";
+  modalOverlay.style.display = "none";
+};
+
+closeBtn.addEventListener("click", closeModal);
+
+modalOverlay.addEventListener("click", closeModal);
+
+saveChangesButton.addEventListener("click", async () => {
+  const formData = new FormData(editForm);
+  formData.forEach((value, key) => {
+    currentElementObject[key] = value;
+  });
+
+  console.log("currentElementObject", currentElementObject);
+  try {
+    const response = await updateData(
+      currentElementObject.id,
+      currentElementObject
+    );
+    console.log("Element updated successfully:", response);
+    await getAllFormElements();
+  } catch (error) {
+    console.error("Error updating element:", error);
+  }
+
+  closeModal();
+});
+
 const createElementsNode = ({
   id,
   element,
@@ -34,43 +195,10 @@ const createElementsNode = ({
   name,
   value,
 }) => {
-  // Create a div to contain the label and form element
   const elementDiv = document.createElement("div");
-  elementDiv.classList.add("form-element");
+  elementDiv.classList.add("form-element", "draggable-div");
+  elementDiv.draggable = true;
 
-  const elementConfigDiv = document.createElement("div");
-  elementConfigDiv.classList.add("element-config");
-  elementConfigDiv.id = id;
-
-  const editIcon = document.createElement("i");
-  editIcon.classList.add(
-    "fa-regular",
-    "fa-pen-to-square",
-    "element-config-button"
-  );
-  editIcon.title = "Edit"; // Adding tooltip
-
-  const dragIcon = document.createElement("i");
-  dragIcon.classList.add(
-    "fas",
-    "fa-arrows-alt",
-    "drag-icon",
-    "element-config-button"
-  );
-  dragIcon.title = "Drag"; // Adding tooltip
-
-  const deleteIcon = document.createElement("i");
-  deleteIcon.classList.add(
-    "fas",
-    "fa-trash",
-    "delete-icon",
-    "element-config-button"
-  );
-  deleteIcon.title = "Delete"; // Adding tooltip
-
-  elementConfigDiv.append(editIcon, dragIcon, deleteIcon);
-  elementDiv.appendChild(elementConfigDiv);
-  // Create the label
   const elementLabelWrapper = document.createElement("div");
   const labelElement = document.createElement("label");
   labelElement.innerText = label;
@@ -79,7 +207,6 @@ const createElementsNode = ({
 
   let formElement;
 
-  // Dynamically create form elements based on the `type`
   switch (element) {
     case "input":
       if (type === "text") {
@@ -95,6 +222,8 @@ const createElementsNode = ({
         formElement.id = id;
         formElement.name = name;
       } else if (type === "checkbox") {
+        elementLabelWrapper.style.display = "flex";
+        elementLabelWrapper.style.alignItems = "center";
         formElement = document.createElement("input");
         formElement.type = "checkbox";
         formElement.value = value;
@@ -123,39 +252,144 @@ const createElementsNode = ({
       break;
 
     default:
-      formElement = null; // Handle invalid types if needed
+      formElement = null;
   }
 
   if (formElement) {
-    elementLabelWrapper.appendChild(formElement); // Append the form element inside the div
+    elementLabelWrapper.appendChild(formElement);
   }
   elementDiv.appendChild(elementLabelWrapper);
-  return elementDiv; // Return the complete div with label and form element
+
+  const elementConfigDiv = document.createElement("div");
+  elementConfigDiv.classList.add("element-config");
+  elementConfigDiv.id = id;
+
+  const editIcon = document.createElement("i");
+  editIcon.classList.add(
+    "fa-regular",
+    "fa-pen-to-square",
+    "element-config-button"
+  );
+  editIcon.title = "Edit";
+
+  let isListenerAttached = false;
+
+  if (!isListenerAttached) {
+    editIcon.addEventListener("click", function () {
+      openModal({
+        id,
+        element,
+        type,
+        placeholder,
+        label,
+        options,
+        name,
+        value,
+      });
+    });
+    isListenerAttached = true;
+  }
+
+  const deleteIcon = document.createElement("i");
+  deleteIcon.classList.add(
+    "fas",
+    "fa-trash",
+    "delete-icon",
+    "element-config-button"
+  );
+  deleteIcon.title = "Delete";
+
+  deleteIcon.addEventListener("click", () => deleteElementById(id));
+
+  elementConfigDiv.append(editIcon, deleteIcon);
+  elementDiv.appendChild(elementConfigDiv);
+
+  return elementDiv;
 };
 
-// Get form elements and render them
 const getElementsNodes = async () => {
   try {
     const formElementsData = await getData(config.api_url);
     console.log("formElements", formElementsData);
 
-    // Clear previous form elements (if any)
     const formContainer = document.getElementById("form-area");
     formContainer.innerHTML = "";
 
-    // Map over form elements data and append the created elements to the UI
+    let draggedItem = null;
+    let currentAfterElement = null;
+
     formElementsData.forEach((eleObj) => {
       const elementNode = createElementsNode(eleObj);
       if (elementNode) {
         formContainer.appendChild(elementNode);
       }
     });
+
+    formContainer.addEventListener("dragstart", (e) => {
+      draggedItem = e.target;
+      e.target.classList.add("dragging");
+      console.log("dragStart:", draggedItem);
+    });
+
+    formContainer.addEventListener("dragend", (e) => {
+      e.target.classList.remove("dragging");
+      draggedItem = null;
+
+      if (currentAfterElement) {
+        currentAfterElement.classList.remove("highlight");
+        currentAfterElement = null;
+      }
+    });
+
+    formContainer.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      console.log("dragOver:");
+      const afterElement = getDragAfterElement(formContainer, e.clientY);
+      console.log("afterElement", afterElement);
+      const dragging = document.querySelector(".dragging");
+
+      if (afterElement && afterElement !== currentAfterElement) {
+        if (currentAfterElement) {
+          currentAfterElement.classList.remove("highlight");
+        }
+        afterElement.classList.add("highlight");
+        currentAfterElement = afterElement;
+      } else if (!afterElement && currentAfterElement) {
+        currentAfterElement.classList.remove("highlight");
+        currentAfterElement = null;
+      }
+
+      if (afterElement == null) {
+        formContainer.appendChild(dragging);
+      } else {
+        formContainer.insertBefore(dragging, afterElement);
+      }
+    });
+
+    function getDragAfterElement(formContainer, y) {
+      console.log("formContainer:", formContainer, "y:", y);
+      const draggableElements = [
+        ...formContainer.querySelectorAll(".draggable-div:not(.dragging)"),
+      ];
+
+      return draggableElements.reduce(
+        (closest, child) => {
+          const box = child.getBoundingClientRect();
+          const offset = y - box.top - box.height / 2;
+          if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+          } else {
+            return closest;
+          }
+        },
+        { offset: Number.NEGATIVE_INFINITY }
+      ).element;
+    }
   } catch (error) {
     console.log("Error in getting form elements nodes", error);
   }
 };
 
-// Fetch and render all form elements on the UI
 const getAllFormElements = async () => {
   try {
     await getElementsNodes();
@@ -176,6 +410,8 @@ const addElementToForm = async (elementType) => {
         label: "Sample Text Input",
         placeholder: "Enter text here",
         name: "textInputName",
+        options: [], // Consistency with Select
+        value: null, // Consistency with Checkbox
       };
       break;
 
@@ -187,6 +423,8 @@ const addElementToForm = async (elementType) => {
         label: "Sample Number Input",
         placeholder: "Enter number here",
         name: "numberInputName",
+        options: [],
+        value: null,
       };
       break;
 
@@ -199,6 +437,7 @@ const addElementToForm = async (elementType) => {
         placeholder: "",
         name: "checkboxName",
         value: "checkboxValue",
+        options: [],
       };
       break;
 
@@ -210,6 +449,8 @@ const addElementToForm = async (elementType) => {
         label: "Sample Select",
         options: ["Sample Option 1", "Sample Option 2", "Sample Option 3"],
         name: "selectName",
+        placeholder: null, // Select doesn't need placeholder
+        value: null, // Consistency with Checkbox
       };
       break;
 
@@ -221,6 +462,8 @@ const addElementToForm = async (elementType) => {
         label: "Sample Textarea",
         placeholder: "Enter text here",
         name: "textareaName",
+        options: [], // Consistency with Select
+        value: null, // Consistency with Checkbox
       };
       break;
 
@@ -230,19 +473,16 @@ const addElementToForm = async (elementType) => {
 
   try {
     const response = await addData(formElementObj);
-    console.log("Sucessfully add element", response);
+    console.log("Successfully added element", response);
     await getAllFormElements();
   } catch (error) {
-    console.log("Error in adding element ...");
+    console.log("Error in adding element", error);
   }
 };
 
 const componentList = document.querySelector(".component-list");
 
 function createSidebarComponentList() {
-  // Select the component-list div where elements will be appended
-
-  // Create the Input button with dropdown icon
   const inputButton = document.createElement("button");
   inputButton.className = "component-btn";
   inputButton.id = "inputDropdownBtn";
@@ -257,10 +497,8 @@ function createSidebarComponentList() {
   dropdownIconSpan.appendChild(dropdownIcon);
   inputButton.appendChild(dropdownIconSpan);
 
-  // Append the Input button to the component list
   componentList.appendChild(inputButton);
 
-  // Create the dropdown content for Input
   const dropdownContent = document.createElement("div");
   dropdownContent.className = "dropdown-content";
   dropdownContent.id = "inputDropdown";
@@ -273,14 +511,12 @@ function createSidebarComponentList() {
     }
   });
 
-  // Dropdown items data
   const dropdownItems = [
     { type: "Text", icon: "+" },
     { type: "Number", icon: "+" },
     { type: "Checkbox", icon: "+" },
   ];
 
-  // Create and append each dropdown item
   dropdownItems.forEach((item) => {
     const dropdownItem = document.createElement("div");
     dropdownItem.className = "dropdown-item";
@@ -298,25 +534,22 @@ function createSidebarComponentList() {
     dropdownContent.appendChild(dropdownItem);
   });
 
-  // Append the dropdown content to the component list
   componentList.appendChild(dropdownContent);
 
-  // Create and append Select button
   const selectButton = document.createElement("button");
   selectButton.className = "component-btn";
   selectButton.textContent = "Select";
-  selectButton.innerHTML += " <span>+</span>"; // Adding the plus sign
+  selectButton.innerHTML += " <span>+</span>";
   selectButton.addEventListener("click", () => {
     addElementToForm("Select");
   });
 
   componentList.appendChild(selectButton);
 
-  // Create and append Textarea button
   const textareaButton = document.createElement("button");
   textareaButton.className = "component-btn";
   textareaButton.textContent = "Textarea";
-  textareaButton.innerHTML += " <span>+</span>"; // Adding the plus sign
+  textareaButton.innerHTML += " <span>+</span>";
   textareaButton.addEventListener("click", () => {
     addElementToForm("Textarea");
   });
@@ -339,5 +572,95 @@ window.addEventListener("click", (event) => {
   }
 });
 
-// Call the function to get and render form elements on page load
 getAllFormElements();
+
+const saveBtn = document.getElementById("save-button");
+saveBtn.addEventListener("click", saveCurrentUI);
+const formContainer = document.getElementById("form-area");
+
+async function saveCurrentUI() {
+  const formElementsArr = document.querySelectorAll(".form-element");
+  let newArrangedElementList = [];
+  if (formElementsArr[0]) {
+    formElementsArr.forEach((element) => {
+      const label = element.querySelector("label")
+        ? element.querySelector("label").innerText
+        : null;
+
+      const formElementType = element.querySelector("textarea")
+        ? "textarea"
+        : element.querySelector("select")
+        ? "select"
+        : element.querySelector("input")
+        ? element.querySelector("input").type
+        : null;
+
+      let elementData = {};
+
+      switch (formElementType) {
+        case "textarea":
+          const textarea = element.querySelector("textarea");
+          elementData = {
+            id: textarea.getAttribute("id"),
+            name: textarea.getAttribute("name"),
+            placeholder: textarea.getAttribute("placeholder"),
+            label: label,
+            type: null,
+            element: "textarea",
+            options: [],
+            value: textarea.getAttribute("value"),
+          };
+          break;
+
+        case "select":
+          const select = element.querySelector("select");
+          const options = Array.from(select.options).map(
+            (option) => option.value
+          );
+          elementData = {
+            id: select.getAttribute("id"),
+            name: select.getAttribute("name"),
+            label: label,
+            options: options,
+            type: null,
+            element: "select",
+            placeholder: select.getAttribute("placeholder"),
+            value: select.getAttribute("value"),
+          };
+          break;
+
+        case "checkbox":
+        case "number":
+        case "text":
+          const input = element.querySelector("input");
+          elementData = {
+            id: input.getAttribute("id"),
+            name: input.getAttribute("name"),
+            placeholder: input.getAttribute("placeholder"),
+            value: input.getAttribute("value"),
+            label: label,
+            type: input.getAttribute("type"),
+            element: "input",
+            options: [],
+          };
+          break;
+
+        default:
+          console.log("No recognizable form element found in the second div");
+      }
+
+      newArrangedElementList.push(elementData);
+      console.log("Element Data:", elementData);
+    });
+    console.log("newArrangedElementListOnSave:", newArrangedElementList);
+    try {
+      const response = await replaceData(newArrangedElementList);
+      console.log("Rearrangement saved successfully", response);
+      await getAllFormElements();
+    } catch (error) {
+      console.log(error);
+    }
+  } else {
+    console.log("Form-element div not found");
+  }
+}
